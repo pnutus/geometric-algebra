@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module MultiVector where
+module Multivector where
 
 import qualified Blades as B
 import Blades (BasisBlade(..))
@@ -10,7 +10,7 @@ import Test.QuickCheck.All
 import Data.AEq
 import Control.Monad
 
-data MultiVector = Mv [BasisBlade]
+data Multivector = Mv [BasisBlade]
                  | Vec3 Double Double Double
                  | Bivec3 Double Double Double
                  | Rotor Double Double Double Double
@@ -18,7 +18,7 @@ data MultiVector = Mv [BasisBlade]
                  deriving (Eq)
 
 
-instance Num MultiVector where
+instance Num Multivector where
 	(+) = add
 	(*) = geo
 	negate = mvNegate
@@ -26,41 +26,41 @@ instance Num MultiVector where
 	signum = error "signum not defined for multivectors"
 	fromInteger = mvFromScalar . fromInteger
 
-instance Fractional MultiVector where
+instance Fractional Multivector where
 	recip = mvReciprocal
 	fromRational = mvFromScalar . fromRational
 
 infixl 7 *>
-(*>) :: Double -> MultiVector -> MultiVector
+(*>) :: Double -> Multivector -> Multivector
 x *> (Mv blades) = Mv $ map (x B.*>) blades
 
 infixl 6 +>
-(+>) :: Double -> MultiVector -> MultiVector
+(+>) :: Double -> Multivector -> Multivector
 x +> mv = (x *> mvOne) `add` mv
 
-geo :: MultiVector -> MultiVector -> MultiVector
+geo :: Multivector -> Multivector -> Multivector
 geo x@(Mv _) y@(Mv _) = mvMult B.geo x y
 geo (Vec3 x1 y1 z1) (Vec3 x2 y2 z2)
   = Rotor (x1*x2 + y1*y2 + z1*z2) (x1*y2 - x2*y1) 
           (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
 (•) = dot
-dot :: MultiVector -> MultiVector -> MultiVector
+dot :: Multivector -> Multivector -> Multivector
 dot x@(Mv _) y@(Mv _) = mvMult B.dot x y
 dot (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Scalar (x1*x2 + y1*y2 + z1*z2)
 
 (§) = out
-out :: MultiVector -> MultiVector -> MultiVector
+out :: Multivector -> Multivector -> Multivector
 out x@(Mv _) y@(Mv _) = mvMult B.out x y
 out (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Bivec3 (x1*y2 - x2*y1) 
           (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
 mvMult :: (BasisBlade -> BasisBlade -> BasisBlade) 
-       -> MultiVector -> MultiVector -> MultiVector
+       -> Multivector -> Multivector -> Multivector
 mvMult op (Mv bs1) (Mv bs2) = bladeSum products
   where products = [b1 `op` b2 | b1 <- bs1, b2 <- bs2]
 
-add :: MultiVector -> MultiVector -> MultiVector
+add :: Multivector -> Multivector -> Multivector
 Mv bs1 `add` Mv bs2 = bladeSum $ foldr bladeAdd bs2 bs1
 
 bladeAdd :: BasisBlade -> [BasisBlade] -> [BasisBlade]
@@ -75,71 +75,71 @@ bladeAdd y@(BasisBlade b1 s1) (x@(BasisBlade b2 s2):xs)
 bladeSimplify :: [BasisBlade] -> [BasisBlade]
 bladeSimplify = foldr bladeAdd []
 
-bladeSum :: [BasisBlade] -> MultiVector
+bladeSum :: [BasisBlade] -> Multivector
 bladeSum = Mv . sort . bladeSimplify
 
-mvZero :: MultiVector
+mvZero :: Multivector
 mvZero = Mv []
 
-mvNegate :: MultiVector -> MultiVector
+mvNegate :: Multivector -> Multivector
 mvNegate (Mv blades) = Mv $ map B.negate blades
 
-mvSquare :: MultiVector -> MultiVector
+mvSquare :: Multivector -> Multivector
 mvSquare a@(Mv _) = a * mvReverse a
 
-mvReciprocal :: MultiVector -> MultiVector
+mvReciprocal :: Multivector -> Multivector
 mvReciprocal x@(Mv _) = recip (getScalar $ mvSquare x) *> x 
 
-mvOne :: MultiVector
+mvOne :: Multivector
 mvOne = Mv [B.one]
 
-mvAbs :: MultiVector -> MultiVector
+mvAbs :: Multivector -> Multivector
 mvAbs = mvFromScalar . sqrt . getScalar . mvSquare
 
-mvNormalize :: MultiVector -> MultiVector
+mvNormalize :: Multivector -> Multivector
 mvNormalize a = a / abs a
 
-mvReverse :: MultiVector -> MultiVector
+mvReverse :: Multivector -> Multivector
 mvReverse (Mv blades) = Mv $ map B.bladeReverse blades
 
-mvInverse :: MultiVector -> MultiVector
+mvInverse :: Multivector -> Multivector
 mvInverse = mvReverse . mvReciprocal
 
-mvSandwich :: MultiVector -> MultiVector -> MultiVector
+mvSandwich :: Multivector -> Multivector -> Multivector
 mvSandwich r a = r * a * mvInverse r
 
-rotorBetween :: MultiVector -> MultiVector -> MultiVector
+rotorBetween :: Multivector -> Multivector -> Multivector
 rotorBetween a b = b * (a + b) / abs (a + b)
 
-mvExp :: MultiVector -> MultiVector
+mvExp :: Multivector -> Multivector
 mvExp a = sum $ takeWhile large [a^n / mvFactorial n | n <- [0..] ]
   where large b = (getScalar $ abs b) > 1e-10
 
 
-mvFactorial :: (Integral a) => a -> MultiVector
+mvFactorial :: (Integral a) => a -> Multivector
 mvFactorial n = fromIntegral $ product [1..n]
         
 -- Conversions
 
-mvGeneralize :: MultiVector -> MultiVector
+mvGeneralize :: Multivector -> Multivector
 mvGeneralize a@(Mv _) = a
 mvGeneralize (Vec3 x y z) = x *> e1 + y *> e2 + z*>e3
 
-mvFromScalar :: Double -> MultiVector
+mvFromScalar :: Double -> Multivector
 mvFromScalar x = Mv [B.scalar x]
 
-getScalar :: MultiVector -> Double
+getScalar :: Multivector -> Double
 getScalar (Mv blades) 
   | Just blade <- find B.isScalar blades = coeff blade
   | otherwise					    			         = 0
 
-multiVectorFromBasisBlade :: BasisBlade -> MultiVector
-multiVectorFromBasisBlade blade = Mv [blade]
+multivectorFromBasisBlade :: BasisBlade -> Multivector
+multivectorFromBasisBlade blade = Mv [blade]
 
 -- Basis vectors
 
-e_ :: Int -> MultiVector
-e_ = multiVectorFromBasisBlade . B.e_
+e_ :: Int -> Multivector
+e_ = multivectorFromBasisBlade . B.e_
 
 e1 = e_ 1
 e2 = e_ 2
@@ -151,7 +151,7 @@ e1e2e3 = e1e2*e3
 
 -- Printing
 
-instance Show MultiVector where
+instance Show Multivector where
   show (Mv bs) = printTerms [(x,B.printBasis b) | BasisBlade b x <- bs]
   show (Scalar x) = printTerm True x ""
   show (Vec3 e1 e2 e3) = 
@@ -176,11 +176,11 @@ printTerm first x basis = sign x ++ number ++ basis
 
 -- Comparing
 
-instance AEq MultiVector where
+instance AEq Multivector where
   (===) = (==)
   (~==) = mvEqual
 
-mvEqual :: MultiVector -> MultiVector -> Bool
+mvEqual :: Multivector -> Multivector -> Bool
 (Mv bs1) `mvEqual` (Mv bs2) = and $ zipWith (~==) bs1 bs2 
         
 -- Testing
@@ -190,13 +190,13 @@ main = do runTests
 runTests = $quickCheckAll
 
 prop_associativity a b c = (a * b) * c ~== a * (b * c)
-  where types = a :: MultiVector
+  where types = a :: Multivector
 
 prop_leftDistributivity a b c = a * (b + c) ~== a * b + a * c
-  where types = a :: MultiVector
+  where types = a :: Multivector
 
 prop_rightDistributivity a b c = (a + b) * c ~== a * c + b * c
-  where types = a :: MultiVector
+  where types = a :: Multivector
 
 prop_revRev a = mvReverse (mvReverse a) == a
 
@@ -218,7 +218,7 @@ gen_vector = do
   (x,y,z) <- arbitrary
   return (x *> e1 + y *> e2 + z *> e3)
 
-instance Arbitrary MultiVector where
+instance Arbitrary Multivector where
   arbitrary = do
     blades <- sized $ \n -> resize (intSqrt n) arbitrary
     return . Mv . bladeSimplify $ blades
