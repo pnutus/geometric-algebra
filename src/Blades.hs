@@ -26,7 +26,7 @@ instance AEq BasisBlade where
     b1 == b2 && s1 ~== s2
     
 dot :: BasisBlade -> BasisBlade -> BasisBlade
-x `dot` y = gradeProj (x `geo` y) (abs $ bladeGrade x - bladeGrade y)  
+x `dot` y = gradeProj (x `geo` y) (abs $ grade x - grade y)  
 
 out :: BasisBlade -> BasisBlade -> BasisBlade
 x `out` y | (basis x).&.(basis y) /= 0   = scalar 0
@@ -43,7 +43,7 @@ reciprocal x = 1 / (coeff (x `geo` x)) *> x
 bladeReverse :: BasisBlade -> BasisBlade
 bladeReverse x | even permutation 	= x
 			         | otherwise			    = negate x
-			   where permutation = bladeGrade x `div` 2
+			   where permutation = grade x `div` 2
 			  
 canonicalSign :: Bitmap -> Bitmap -> Double
 canonicalSign 0 _   = 1
@@ -66,15 +66,15 @@ isScalar :: BasisBlade -> Bool
 isScalar blade = basis blade == 0
 
 isVector :: BasisBlade -> Bool
-isVector blade = bladeGrade blade == 1
+isVector blade = grade blade == 1
 
-bladeGrade :: BasisBlade -> Int
-bladeGrade blade = popCount (basis blade)
+grade :: BasisBlade -> Int
+grade blade = popCount (basis blade)
 
 gradeProj :: BasisBlade -> Int -> BasisBlade
-gradeProj blade grade 
-  | bladeGrade blade == grade = blade
-  | otherwise                 = zero
+gradeProj blade g 
+  | grade blade == g  = blade
+  | otherwise         = zero
 
 negate :: BasisBlade -> BasisBlade
 negate (BasisBlade b s) = BasisBlade b (-s)
@@ -118,11 +118,11 @@ prop_geoOuterEquiv bl1@(BasisBlade b1 s1) bl2@(BasisBlade b2 s2) =
   
 prop_outerGrade x y = 
   (outProd /= scalar 0) ==>
-  bladeGrade (outProd) == bladeGrade x + bladeGrade y
+  grade (outProd) == grade x + grade y
     where outProd = x `out` y
 
 prop_geoGrade x y = 
-  bladeGrade (x `geo` y) == bladeGrade x + bladeGrade y - 2*common
+  grade (x `geo` y) == grade x + grade y - 2*common
   where common = popCount $ basis x .&. basis y
   
 

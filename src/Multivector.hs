@@ -1,9 +1,21 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Multivector where
+module Multivector 
+  ( Multivector
+  , geo
+  , (•), dot
+  , (§), out
+  , mvZero, mvOne
+  , mvReverse
+  , mvSandwich
+  , rotorBetween
+  , e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3
+  ) where
 
 import qualified Blades as B
 import Blades (BasisBlade(..))
+-- import qualified LinearCombination as LC
+-- import LinearCombination (LinearCombination(..))
 import Data.List (sort, find)
 import Test.QuickCheck
 import Test.QuickCheck.All
@@ -11,24 +23,55 @@ import Data.AEq
 import Control.Monad
 
 data Multivector = Mv [BasisBlade]
+                 | Scalar Double
+                 | Vec2 Double Double
+                 | Bivec2 Double
+                 | Rotor2 Double Double
                  | Vec3 Double Double Double
                  | Bivec3 Double Double Double
-                 | Rotor Double Double Double Double
-                 | Scalar Double
+                 | Trivec3 Double
+                 | Rotor3 Double Double Double Double
                  deriving (Eq)
 
+
+-- * Operators
 
 instance Num Multivector where
 	(+) = add
 	(*) = geo
 	negate = mvNegate
 	abs = mvAbs
-	signum = error "signum not defined for multivectors"
+	signum = mvNormalize
 	fromInteger = mvFromScalar . fromInteger
 
 instance Fractional Multivector where
 	recip = mvReciprocal
 	fromRational = mvFromScalar . fromRational
+
+instance Floating Multivector where
+  pi = mvFromScalar pi
+  exp = mvExp
+  sin = mvSin
+  cos = mvCos
+  cosh = mvCosh
+  sinh = mvSinh
+  log   = mvOnlyScalar log
+  sqrt  = mvOnlyScalar sqrt
+  acos  = mvOnlyScalar acos
+  asin  = mvOnlyScalar asin
+  atan  = mvOnlyScalar atan
+  acosh = mvOnlyScalar acosh
+  asinh = mvOnlyScalar asinh
+  atanh = mvOnlyScalar atanh
+
+tau = tupi
+tupi :: Floating a => a
+tupi = 2*pi  
+
+mvOnlyScalar :: (Double -> Double) -> Multivector -> Multivector
+mvOnlyScalar f x | isScalar x = mvFromScalar . f . getScalar $ x
+                 | otherwise  = error "only works on scalars"
+               
 
 infixl 7 *>
 (*>) :: Double -> Multivector -> Multivector
@@ -39,44 +82,29 @@ infixl 6 +>
 x +> mv = (x *> mvOne) `add` mv
 
 geo :: Multivector -> Multivector -> Multivector
-geo x@(Mv _) y@(Mv _) = mvMult B.geo x y
+geo x@(Mv _) y@(Mv _) = mvProduct B.geo x y
 geo (Vec3 x1 y1 z1) (Vec3 x2 y2 z2)
-  = Rotor (x1*x2 + y1*y2 + z1*z2) (x1*y2 - x2*y1) 
-          (x1*z2 - x2*z1) (y1*z2 - y2*z1)
+  = Rotor3 (x1*x2 + y1*y2 + z1*z2) (x1*y2 - x2*y1) 
+           (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
 (•) = dot
 dot :: Multivector -> Multivector -> Multivector
-dot x@(Mv _) y@(Mv _) = mvMult B.dot x y
+dot x@(Mv _) y@(Mv _) = mvProduct B.dot x y
 dot (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Scalar (x1*x2 + y1*y2 + z1*z2)
 
 (§) = out
 out :: Multivector -> Multivector -> Multivector
-out x@(Mv _) y@(Mv _) = mvMult B.out x y
+out x@(Mv _) y@(Mv _) = mvProduct B.out x y
 out (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Bivec3 (x1*y2 - x2*y1) 
           (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
-mvMult :: (BasisBlade -> BasisBlade -> BasisBlade) 
-       -> Multivector -> Multivector -> Multivector
-mvMult op (Mv bs1) (Mv bs2) = bladeSum products
+mvProduct :: (BasisBlade -> BasisBlade -> BasisBlade) 
+           -> Multivector -> Multivector -> Multivector
+mvProduct op (Mv bs1) (Mv bs2) = bladeSum products
   where products = [b1 `op` b2 | b1 <- bs1, b2 <- bs2]
 
 add :: Multivector -> Multivector -> Multivector
 Mv bs1 `add` Mv bs2 = bladeSum $ foldr bladeAdd bs2 bs1
-
-bladeAdd :: BasisBlade -> [BasisBlade] -> [BasisBlade]
-bladeAdd y [] = [y]
-bladeAdd y@(BasisBlade b1 s1) (x@(BasisBlade b2 s2):xs)
-  | b1 == b2      = if s == 0 then xs else BasisBlade b1 s : xs
-  | b1 < b2       = y : x : xs
-  | otherwise     = x : bladeAdd y xs
-  where s = s1 + s2
-
-
-bladeSimplify :: [BasisBlade] -> [BasisBlade]
-bladeSimplify = foldr bladeAdd []
-
-bladeSum :: [BasisBlade] -> Multivector
-bladeSum = Mv . sort . bladeSimplify
 
 mvZero :: Multivector
 mvZero = Mv []
@@ -111,15 +139,45 @@ mvSandwich r a = r * a * mvInverse r
 rotorBetween :: Multivector -> Multivector -> Multivector
 rotorBetween a b = b * (a + b) / abs (a + b)
 
-mvExp :: Multivector -> Multivector
-mvExp a = sum $ takeWhile large [a^n / mvFactorial n | n <- [0..] ]
-  where large b = (getScalar $ abs b) > 1e-10
+-- * Mathematical functions
 
+-- | Multivector exponentiation. Implemented as a truncated Taylor series.
+mvExp :: Multivector -> Multivector
+mvExp x = mvTruncatedSeries [x^n / mvFactorial n | n <- [0..] ]
+
+mvCos, mvSin :: Multivector -> Multivector
+mvCos x = mvTruncatedSeries [(-1)^n * x^(2*n) / mvFactorial (2*n) | n <- [0..]]
+mvSin x = mvTruncatedSeries 
+  [(-1)^n * x^(2*n + 1) / mvFactorial (2*n + 1) | n <- [0..]]
+  
+mvCosh, mvSinh :: Multivector -> Multivector
+mvCosh x = mvTruncatedSeries [x^(2*n)     / mvFactorial (2*n)     | n <- [0..]]
+mvSinh x = mvTruncatedSeries [x^(2*n + 1) / mvFactorial (2*n + 1) | n <- [0..]]
+
+mvTruncatedSeries :: [Multivector] -> Multivector
+mvTruncatedSeries = sum . takeWhile large
+  where large s = (getScalar $ abs s) > 1e-10
 
 mvFactorial :: (Integral a) => a -> Multivector
 mvFactorial n = fromIntegral $ product [1..n]
+
+-- * Checks
+
+isScalar :: Multivector -> Bool
+isScalar (Mv [])    = True
+isScalar (Mv [x])   = B.isScalar x
+isScalar (Scalar _) = True
+isScalar _          = False
+
+isVersor :: Multivector -> Bool
+isVersor (Mv x)           = and $ map (even . B.grade) x
+isVersor (Scalar _)       = True
+isVersor (Bivec2 _)       = True
+isVersor (Rotor2 _ _)     = True
+isVersor (Rotor3 _ _ _ _) = True
+isVersor _                = False
         
--- Conversions
+-- * Conversions
 
 mvGeneralize :: Multivector -> Multivector
 mvGeneralize a@(Mv _) = a
@@ -136,8 +194,9 @@ getScalar (Mv blades)
 multivectorFromBasisBlade :: BasisBlade -> Multivector
 multivectorFromBasisBlade blade = Mv [blade]
 
--- Basis vectors
+-- * Basis vectors
 
+-- | Generates a basis vector, e.g. e_1.
 e_ :: Int -> Multivector
 e_ = multivectorFromBasisBlade . B.e_
 
@@ -149,14 +208,14 @@ e1e3 = e1*e3
 e2e3 = e2*e3
 e1e2e3 = e1e2*e3
 
--- Printing
+-- * Printing
 
 instance Show Multivector where
   show (Mv bs) = printTerms [(x,B.printBasis b) | BasisBlade b x <- bs]
   show (Scalar x) = printTerm True x ""
   show (Vec3 e1 e2 e3) = 
     printTerms [(e1,"e1"),(e2,"e2"),(e3,"e3")]
-  show (Rotor x e12 e13 e23) = 
+  show (Rotor3 x e12 e13 e23) = 
     printTerms [(x,""),(e12,"e1e2"),(e13,"e1e3"),(e23,"e2e3")]
   show (Bivec3 e12 e13 e23) = 
     printTerms [(e12,"e1e2"),(e13,"e1e3"),(e23,"e2e3")]
@@ -174,7 +233,23 @@ printTerm first x basis = sign x ++ number ++ basis
         number = if absx == 1 && basis /= "" then "" else show absx
         absx   = abs x
 
--- Comparing
+-- * Blade stuff
+
+bladeAdd :: BasisBlade -> [BasisBlade] -> [BasisBlade]
+bladeAdd y [] = [y]
+bladeAdd y@(BasisBlade b1 s1) (x@(BasisBlade b2 s2):xs)
+  | b1 == b2      = if s == 0 then xs else BasisBlade b1 s : xs
+  | b1 < b2       = y : x : xs
+  | otherwise     = x : bladeAdd y xs
+  where s = s1 + s2
+
+bladeSimplify :: [BasisBlade] -> [BasisBlade]
+bladeSimplify = foldr bladeAdd []
+
+bladeSum :: [BasisBlade] -> Multivector
+bladeSum = Mv . sort . bladeSimplify
+
+-- * Comparisons
 
 instance AEq Multivector where
   (===) = (==)
@@ -183,7 +258,7 @@ instance AEq Multivector where
 mvEqual :: Multivector -> Multivector -> Bool
 (Mv bs1) `mvEqual` (Mv bs2) = and $ zipWith (~==) bs1 bs2 
         
--- Testing
+-- * Testing
 
 main = do runTests
 
@@ -212,7 +287,7 @@ prop_rotate = forAll (vectorOf 2 $ liftM mvNormalize gen_vector) $ \[a,b] ->
 
 prop_sorted a@(Mv blades) = a == Mv (sort blades) 
 
--- generators
+-- * generators
   
 gen_vector = do 
   (x,y,z) <- arbitrary
