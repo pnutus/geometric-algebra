@@ -9,7 +9,7 @@ import Data.Digits (digitsRev)
 import Test.QuickCheck hiding ((.&.))
 import Test.QuickCheck.All
 import Data.AEq
-import Prelude hiding (negate)
+import Prelude hiding (negate, reverse)
 
 type Bitmap = Word8
 data BasisBlade = BasisBlade { basis :: Bitmap
@@ -40,8 +40,8 @@ geo :: BasisBlade -> BasisBlade -> BasisBlade
 reciprocal :: BasisBlade -> BasisBlade
 reciprocal x = 1 / (coeff (x `geo` x)) *> x
 
-bladeReverse :: BasisBlade -> BasisBlade
-bladeReverse x | even permutation 	= x
+reverse :: BasisBlade -> BasisBlade
+reverse x | even permutation 	= x
 			         | otherwise			    = negate x
 			   where permutation = grade x `div` 2
 			  
@@ -63,10 +63,22 @@ one :: BasisBlade
 one = scalar 1
 
 isScalar :: BasisBlade -> Bool
-isScalar blade = basis blade == 0
+isScalar = isOfGrade 0
 
 isVector :: BasisBlade -> Bool
-isVector blade = grade blade == 1
+isVector = isOfGrade 1
+
+isBivector :: BasisBlade -> Bool
+isBivector = isOfGrade 2
+
+isTrivector :: BasisBlade -> Bool
+isTrivector = isOfGrade 3
+
+isVersor :: BasisBlade -> Bool
+isVersor = even . grade
+
+isOfGrade :: Int -> BasisBlade -> Bool
+isOfGrade n blade = grade blade == n
 
 grade :: BasisBlade -> Int
 grade blade = popCount (basis blade)
@@ -100,7 +112,7 @@ instance Show BasisBlade where
 printBasis basis = intercalate "e" $ "" : map show (bitFilter basis [1..])
      
 bitFilter bits = maskFilter (bitsToBool $ digitsRev 2 bits)
-    where bitsToBool = map (/= 0)
+    where bitsToBool = map (== 1)
         
 maskFilter mask xs = map snd $ filter fst (zip mask xs)
 
