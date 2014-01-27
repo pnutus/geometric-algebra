@@ -2,13 +2,14 @@
 
 module Multivector 
   ( Multivector
+  -- * Operators and operations
   , geo
   , (•), dot
   , (§), out
-  , mvZero, mvOne
   , mvReverse
   , mvSandwich
   , rotorBetween
+  -- * Basis elements
   , e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3
   ) where
 
@@ -79,7 +80,7 @@ x *> (Mv blades) = Mv $ map (x B.*>) blades
 
 infixl 6 +>
 (+>) :: Double -> Multivector -> Multivector
-x +> mv = (x *> mvOne) `add` mv
+x +> mv = mvFromScalar x + mv
 
 geo :: Multivector -> Multivector -> Multivector
 geo x@(Mv _) y@(Mv _) = mvProduct B.geo x y
@@ -101,13 +102,11 @@ out (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Bivec3 (x1*y2 - x2*y1)
 mvProduct :: (BasisBlade -> BasisBlade -> BasisBlade) 
            -> Multivector -> Multivector -> Multivector
 mvProduct op (Mv bs1) (Mv bs2) = bladeSum products
-  where products = [b1 `op` b2 | b1 <- bs1, b2 <- bs2]
+  where products = [b1 `op` b2 | b1 <- bs1, b2 <- bs2, 
+                    coeff b1 /= 0, coeff b2 /= 0]
 
 add :: Multivector -> Multivector -> Multivector
 Mv bs1 `add` Mv bs2 = bladeSum $ foldr bladeAdd bs2 bs1
-
-mvZero :: Multivector
-mvZero = Mv []
 
 mvNegate :: Multivector -> Multivector
 mvNegate (Mv blades) = Mv $ map B.negate blades
@@ -117,9 +116,6 @@ mvSquare a@(Mv _) = a * mvReverse a
 
 mvReciprocal :: Multivector -> Multivector
 mvReciprocal x@(Mv _) = recip (getScalar $ mvSquare x) *> x 
-
-mvOne :: Multivector
-mvOne = Mv [B.one]
 
 mvAbs :: Multivector -> Multivector
 mvAbs = mvFromScalar . sqrt . getScalar . mvSquare
@@ -179,11 +175,20 @@ isVersor _                = False
         
 -- * Conversions
 
+-- | Creates arbitrary Multivectors from specialized types.
 mvGeneralize :: Multivector -> Multivector
 mvGeneralize a@(Mv _) = a
-mvGeneralize (Vec3 x y z) = x *> e1 + y *> e2 + z*>e3
+mvGeneralize (Scalar x) = x *> 1
+mvGeneralize (Vec2 x y) = x *> e1 + y *> e2
+mvGeneralize (Bivec2 i) = i *> e1e2
+mvGeneralize (Rotor2 r i) = r *> 1 + i *> e1e2
+mvGeneralize (Vec3 x y z) = x *> e1 + y *> e2 + z *> e3
+mvGeneralize (Bivec3 i j k) = i *> e1e2 + j *> e1e3 + k *> e2e3
+mvGeneralize (Trivec3 i) = i *> e1e2e3
+mvGeneralize (Rotor3 r i j k) = r *> 1 + i *> e1e2 + j *> e1e3 + k *> e2e3
 
 mvFromScalar :: Double -> Multivector
+mvFromScalar 0 = Mv []
 mvFromScalar x = Mv [B.scalar x]
 
 getScalar :: Multivector -> Double
@@ -200,6 +205,7 @@ multivectorFromBasisBlade blade = Mv [blade]
 e_ :: Int -> Multivector
 e_ = multivectorFromBasisBlade . B.e_
 
+e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3 :: Multivector
 e1 = e_ 1
 e2 = e_ 2
 e3 = e_ 3
@@ -279,7 +285,7 @@ prop_invInv a = mvInverse (mvInverse a) ~== a
 
 prop_revInv a = mvInverse (mvReverse a) ~== mvReverse (mvInverse a)
 
-prop_normAbs a = (a /= mvZero) ==> abs (mvNormalize a) ~== mvOne
+prop_normAbs a = (a /= 0) ==> abs (mvNormalize a) ~== 1
 
 prop_rotate = forAll (vectorOf 2 $ liftM mvNormalize gen_vector) $ \[a,b] -> 
   let rotor = rotorBetween a b
