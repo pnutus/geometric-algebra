@@ -16,8 +16,8 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Multivector
-  other-modules:       Blades   
+  exposed-modules:     Numeric.GeometricAlgebra
+  other-modules:       Numeric.BasisBlade   
   other-extensions:    TemplateHaskell
   build-depends:       base >=4.6 && <4.7, digits >=0.2 && <0.3, QuickCheck >=2.6 && <2.7, ieee754 >=0.7 && <0.8
   hs-source-dirs:      src

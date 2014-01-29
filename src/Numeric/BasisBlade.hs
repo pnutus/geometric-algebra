@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Blades where
+module Numeric.BasisBlade where
 
 import Data.Word
 import Data.Bits

@@ -1,10 +1,17 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Multivector 
+-- | Geometric algebra module optimized for understanding, not efficiency.
+-- In GA, both objects and operators are 'Multivector's that can be added
+-- multiplied, exponentiated with expected results.
+-- For more information on GA, see the
+-- <http://en.wikipedia.org/wiki/Geometric_algebra Wikipedia article> on GA
+-- (including referenced literature).
+
+module Numeric.GeometricAlgebra 
   ( Multivector
   -- * Operators and operations
   , geo
-  , (#), out
+  , (∧), out
   , (•), dot
   , (⎦), (⎣)
   , (*>), (+>) 
@@ -18,15 +25,20 @@ module Multivector
   , e_, e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3, i
   ) where
 
-import qualified Blades as B
-import Blades (BasisBlade(..))
-import Data.List (sort, find)
+import qualified Numeric.BasisBlade as B
+import Numeric.BasisBlade (BasisBlade(..))
+import Data.List (find, sort)
 import GHC.Exts (sortWith)
 import Test.QuickCheck
 import Test.QuickCheck.All
 import Data.AEq
-import Control.Monad
-import Prelude hiding (mvReverse)
+import Control.Monad (liftM)
+
+-- | Multivectors represent both geometric objects and operations in geometric
+-- algebra. They are represented as a sum of basis blades, which isn't optimal
+-- from a efficiency standpoint, but is very handy. Multivectors can be added,
+-- multiplied (using the geometric, outer and verious inner products), 
+-- exponentiated and more, as if they were just ordinary numbers.
 
 data Multivector = Mv [BasisBlade]
                  | Scalar Double
@@ -79,20 +91,20 @@ infixl 9 ⎦
 infixl 9 ⎣
 (⎣) = mvProduct (B.⎣)
 
--- | Outer product. Same as '#'.
+-- | Outer product. Same as '∧'.
 out :: Multivector -> Multivector -> Multivector
 out x@(Mv _) y@(Mv _) = mvProduct B.out x y
 out (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Bivec3 (x1*y2 - x2*y1) 
           (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
 -- | Outer product. Same as 'out'.
-infixl 8 #
-(#) = out
+infixl 8 ∧
+(∧) = out
 
 -- | Used to implement the different products.
 mvProduct :: (BasisBlade -> BasisBlade -> BasisBlade) 
            -> Multivector -> Multivector -> Multivector
-mvProduct op (Mv bs1) (Mv bs2) = bladeSum products
+mvProduct op (Mv bs1) (Mv bs2) = Mv $ bladeSimplify products
   where products = [result | b1 <- bs1, b2 <- bs2, 
                     let result = b1 `op` b2,
                     B.coeff result /= 0]
@@ -123,15 +135,15 @@ sandwich r a = r * a * recip r
 rotorBetween :: Multivector -> Multivector -> Multivector
 rotorBetween a b = b * normalize (a + b)
 
--- | Grade projection, the grade n part of a multivector A, i.e. <A>_n
--- Same as '<>'.
-gradeProject :: Multivector -> Int -> Multivector
-gradeProject (Mv blades) n = Mv $ filter (B.isOfGrade n) blades
 
--- | Grade projection, the grade n part of a multivector A. A <> n <=> <A>_n
+-- | Grade projection, the grade n part of a multivector A.
 -- Same as 'gradeProject'.
 infixl 9 <>
 (<>) = gradeProject
+
+-- | Synonym for '<>'.
+gradeProject :: Multivector -> Int -> Multivector
+gradeProject (Mv blades) n = Mv $ filter (B.isOfGrade n) blades
 
 -- | The product of the squares of the constituent vector factors of a
 -- Multivector.
@@ -290,7 +302,7 @@ getScalar (Mv blades)
 e_ :: Int -> Multivector
 e_ n = Mv [B.e_ n]
 
-e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3, i :: Multivector
+e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3 :: Multivector
 e1 = e_ 1
 e2 = e_ 2
 e3 = e_ 3
@@ -298,6 +310,9 @@ e1e2 = e1*e2
 e1e3 = e1*e3
 e2e3 = e2*e3
 e1e2e3 = e1e2*e3
+
+-- | Pseudoscalar for 3-dimensional GA. Same as 'e1e2e3'.
+i :: Multivector
 i = e1e2e3
 
 -- * Printing
@@ -337,9 +352,6 @@ bladeAdd y@(BasisBlade b1 s1) (x@(BasisBlade b2 s2):xs)
 
 bladeSimplify :: [BasisBlade] -> [BasisBlade]
 bladeSimplify = foldr bladeAdd []
-
-bladeSum :: [BasisBlade] -> Multivector
-bladeSum = Mv . sort . bladeSimplify
 
 -- * Comparisons
 
