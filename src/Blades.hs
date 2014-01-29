@@ -26,7 +26,13 @@ instance AEq BasisBlade where
     b1 == b2 && s1 ~== s2
     
 dot :: BasisBlade -> BasisBlade -> BasisBlade
-x `dot` y = gradeProj (x `geo` y) (abs $ grade x - grade y)  
+x `dot` y = gradeProject (x `geo` y) (abs $ grade x - grade y)  
+
+(⎣) :: BasisBlade -> BasisBlade -> BasisBlade
+x ⎣ y = gradeProject (x `geo` y) (grade x - grade y)
+
+(⎦) :: BasisBlade -> BasisBlade -> BasisBlade
+x ⎦ y = gradeProject (x `geo` y) (grade y - grade x)
 
 out :: BasisBlade -> BasisBlade -> BasisBlade
 x `out` y | (basis x).&.(basis y) /= 0   = scalar 0
@@ -36,15 +42,16 @@ geo :: BasisBlade -> BasisBlade -> BasisBlade
 (BasisBlade b1 s1) `geo` (BasisBlade b2 s2) = BasisBlade bits coeff
      where bits = b1 `xor` b2
            coeff = s1 * s2 * canonicalSign b1 b2
+           
 
-reciprocal :: BasisBlade -> BasisBlade
-reciprocal x = 1 / (coeff (x `geo` x)) *> x
 
 reverse :: BasisBlade -> BasisBlade
-reverse x | even permutation 	= x
-			         | otherwise			    = negate x
-			   where permutation = grade x `div` 2
-			  
+reverse x | squareSign x == 1 = x
+          | otherwise         = negate x
+
+negate :: BasisBlade -> BasisBlade
+negate (BasisBlade b s) = BasisBlade b (-s)
+
 canonicalSign :: Bitmap -> Bitmap -> Double
 canonicalSign 0 _   = 1
 canonicalSign _ 0   = 1
@@ -53,51 +60,37 @@ canonicalSign b1 b2 | even minuses = 1
   where minuses = sum $ map shiftand [1..(bitSize b2 - 1)] 
         shiftand n = popCount $ b1.&.(shift b2 n)
 
-scalar :: Double -> BasisBlade
-scalar x = BasisBlade 0 x
-
-zero :: BasisBlade
-zero = scalar 0
-
-one :: BasisBlade
-one = scalar 1
-
-isScalar :: BasisBlade -> Bool
-isScalar = isOfGrade 0
-
-isVector :: BasisBlade -> Bool
-isVector = isOfGrade 1
-
-isBivector :: BasisBlade -> Bool
-isBivector = isOfGrade 2
-
-isTrivector :: BasisBlade -> Bool
-isTrivector = isOfGrade 3
-
-isVersor :: BasisBlade -> Bool
-isVersor = even . grade
 
 isOfGrade :: Int -> BasisBlade -> Bool
 isOfGrade n blade = grade blade == n
 
+isScalar, isVector, isBivector, isTrivector:: BasisBlade -> Bool
+isScalar    = isOfGrade 0
+isVector    = isOfGrade 1
+isBivector  = isOfGrade 2
+isTrivector = isOfGrade 3
+
+squareSign :: BasisBlade -> Int
+squareSign x | even permutation = 1
+             | odd  permutation = -1
+  where permutation = grade x `div` 2
+
 grade :: BasisBlade -> Int
 grade blade = popCount (basis blade)
 
-gradeProj :: BasisBlade -> Int -> BasisBlade
-gradeProj blade g 
+gradeProject :: BasisBlade -> Int -> BasisBlade
+gradeProject blade g 
   | grade blade == g  = blade
-  | otherwise         = zero
-
-negate :: BasisBlade -> BasisBlade
-negate (BasisBlade b s) = BasisBlade b (-s)
+  | otherwise         = scalar 0
 
 infixl 7 *>
 (*>) :: Double -> BasisBlade -> BasisBlade
 x *> (BasisBlade b s) = BasisBlade b (x*s)
 
-e_ n = BasisBlade (bit $ n - 1) 1
+scalar :: Double -> BasisBlade
+scalar x = BasisBlade 0 x
 
-basisVector n = bit (n - 1)
+e_ n = BasisBlade (bit $ n - 1) 1
 
 -- Printing
 

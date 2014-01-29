@@ -4,14 +4,18 @@ module Multivector
   ( Multivector
   -- * Operators and operations
   , geo
-  , (•), dot
   , (#), out
+  , (•), dot
+  , (⎦), (⎣)
   , (*>), (+>) 
   , mvReverse
   , sandwich
   , rotorBetween
+  , (<>), gradeProject
+  -- * Constants
+  , tupi, tau
   -- * Basis elements
-  , e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3
+  , e_, e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3, i
   ) where
 
 import qualified Blades as B
@@ -67,13 +71,21 @@ dot (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Scalar (x1*x2 + y1*y2 + z1*z2)
 infixl 9 •
 (•) = dot
 
+-- | Left contraction.
+infixl 9 ⎦
+(⎦) = mvProduct (B.⎦)
+
+-- | Right contraction.
+infixl 9 ⎣
+(⎣) = mvProduct (B.⎣)
+
 -- | Outer product. Same as '#'.
 out :: Multivector -> Multivector -> Multivector
 out x@(Mv _) y@(Mv _) = mvProduct B.out x y
 out (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Bivec3 (x1*y2 - x2*y1) 
           (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
--- | Outer product. Same as 'out'
+-- | Outer product. Same as 'out'.
 infixl 8 #
 (#) = out
 
@@ -109,7 +121,17 @@ sandwich r a = r * a * recip r
 
 -- | Generates a rotor to rotate direction a into direction b.
 rotorBetween :: Multivector -> Multivector -> Multivector
-rotorBetween a b = b * (a + b) / abs (a + b)
+rotorBetween a b = b * normalize (a + b)
+
+-- | Grade projection, the grade n part of a multivector A, i.e. <A>_n
+-- Same as '<>'.
+gradeProject :: Multivector -> Int -> Multivector
+gradeProject (Mv blades) n = Mv $ filter (B.isOfGrade n) blades
+
+-- | Grade projection, the grade n part of a multivector A. A <> n <=> <A>_n
+-- Same as 'gradeProject'.
+infixl 9 <>
+(<>) = gradeProject
 
 -- | The product of the squares of the constituent vector factors of a
 -- Multivector.
@@ -120,18 +142,46 @@ mvSquare a@(Mv _) = a * mvReverse a
 
 instance Floating Multivector where
   pi = mvFromScalar pi
-  exp = mapScalarOr exp $ \x -> 
-    mvTruncatedSeries [x^n / mvFactorial n | n <- [0..] ]
-  cos = mapScalarOr cos $ \x ->
-    mvTruncatedSeries [(-1)^n * x^(2*n) / mvFactorial (2*n) | n <- [0..]]
-  sin = mapScalarOr sin $ \x ->
-    mvTruncatedSeries [(-1)^n * x^(2*n+1) / mvFactorial (2*n+1) | n <- [0..]]
-  cosh = mapScalarOr cosh $ \x ->
-    mvTruncatedSeries [x^(2*n)     / mvFactorial (2*n)     | n <- [0..]]
-  sinh = mapScalarOr sinh $ \x ->
-    mvTruncatedSeries [x^(2*n + 1) / mvFactorial (2*n + 1) | n <- [0..]]
-  log   = mvOnlyScalar log
-  sqrt  = mvOnlyScalar sqrt
+  exp x  | isScalar x      = mapScalar exp x
+         | hasPosSquare x  = cosh (abs x) + normalize x * sinh (abs x)
+         | hasNegSquare x  = cos  (abs x) + normalize x * sin  (abs x)
+         | hasNullSquare x = 1 + x
+         | otherwise       = mvTruncatedSeries 
+           [x^n / mvFactorial n | n <- [0..] ]
+         
+  cos x  | isScalar x      = mapScalar cos x
+         | hasPosSquare x  = cos  (abs x)
+         | hasNegSquare x  = cosh (abs x)
+         | hasNullSquare x = 1 + x
+         | otherwise       = mvTruncatedSeries 
+           [(-1)^n * x^(2*n) / mvFactorial (2*n) | n <- [0..]]
+                         
+  sin x  | isScalar x      = mapScalar sin x
+         | hasPosSquare x  = normalize x * sin  (abs x)
+         | hasNegSquare x  = normalize x * sinh (abs x)
+         | hasNullSquare x = 0
+         | otherwise       = mvTruncatedSeries  
+           [(-1)^n * x^(2*n+1) / mvFactorial (2*n+1) | n <- [0..]]
+  
+  cosh x | isScalar x      = mapScalar cosh x
+         | hasPosSquare x  = cosh (abs x)
+         | hasNegSquare x  = cos  (abs x)
+         | hasNullSquare x = 1 + x
+         | otherwise       = mvTruncatedSeries 
+           [x^(2*n) / mvFactorial (2*n) | n <- [0..]]
+  
+  sinh x | isScalar x      = mapScalar sinh x
+         | hasPosSquare x  = normalize x * sinh (abs x)
+         | hasNegSquare x  = normalize x * sin  (abs x)
+         | hasNullSquare x = 0
+         | otherwise       = mvTruncatedSeries 
+            [x^(2*n + 1) / mvFactorial (2*n + 1) | n <- [0..]]
+  
+  log x | isScalar x = mapScalar log x
+        | isRotor  x = log (abs x) 
+            + normalize (x <> 2) * mvAtan2 (abs $ x <> 2) (abs $ x <> 0) 
+        | otherwise  = error "Only works with scalars and rotors."
+  
   acos  = mvOnlyScalar acos
   asin  = mvOnlyScalar asin
   atan  = mvOnlyScalar atan
@@ -146,12 +196,7 @@ tau = tupi
 
 mvOnlyScalar :: (Double -> Double) -> Multivector -> Multivector
 mvOnlyScalar f x | isScalar x = mapScalar f x
-                 | otherwise  = error "only works with scalars"
-
-mapScalarOr :: (Double -> Double) -> (Multivector -> Multivector) 
-            -> Multivector -> Multivector
-mapScalarOr f g x | isScalar x = mapScalar f x
-                  | otherwise  = g x
+                 | otherwise  = error "Only works with scalars."
 
 mapScalar :: (Double -> Double) -> Multivector -> Multivector
 mapScalar f = mvFromScalar . f . getScalar
@@ -162,6 +207,9 @@ mvTruncatedSeries = sum . takeWhile large
 
 mvFactorial :: (Integral a) => a -> Multivector
 mvFactorial n = fromIntegral $ product [1..n]
+
+mvAtan2 :: Multivector -> Multivector -> Multivector
+mvAtan2 y x = mvFromScalar $ atan2 (getScalar y) (getScalar x)
 
 -- * Predicates
 
@@ -188,14 +236,31 @@ isTrivector (Mv blades)   = all B.isTrivector blades
 isTrivector (Trivec3 _)   = True
 isTrivector _             = False
 
-isVersor :: Multivector -> Bool
-isVersor (Mv blades)      = all B.isVersor blades
-isVersor (Scalar _)       = True
-isVersor (Bivec2 _)       = True
-isVersor (Rotor2 _ _)     = True
-isVersor (Rotor3 _ _ _ _) = True
-isVersor _                = False
-        
+isRotor :: Multivector -> Bool
+isRotor (Mv blades)       = all (\b -> B.isScalar b || B.isBivector b) blades
+isRotor (Rotor2 _ _)      = True
+isRotor (Rotor3 _ _ _ _)  = True
+isRotor _                 = False
+
+hasPosSquare :: Multivector -> Bool
+hasPosSquare (Mv blades)      = all ((1 ==) . B.squareSign) blades
+hasPosSquare (Scalar _)       = True
+hasPosSquare (Vec2 _ _)       = True
+hasPosSquare (Vec3 _ _ _)     = True
+hasPosSquare _                = False
+
+hasNegSquare :: Multivector -> Bool
+hasNegSquare (Mv blades)      = all ((-1 ==) . B.squareSign) blades
+hasNegSquare x                = isBivector x || isTrivector x
+
+hasNullSquare :: Multivector -> Bool
+hasNullSquare (Mv [])     = True
+hasNullSquare (Scalar 0)  = True
+hasNullSquare _           = False
+
+hasScalarSquare :: Multivector -> Bool
+hasScalarSquare x = hasPosSquare x || hasNegSquare x || hasNullSquare x
+
 -- * Conversions
 
 -- | Creates arbitrary Multivectors from specialized types.
@@ -225,7 +290,7 @@ getScalar (Mv blades)
 e_ :: Int -> Multivector
 e_ n = Mv [B.e_ n]
 
-e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3 :: Multivector
+e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3, i :: Multivector
 e1 = e_ 1
 e2 = e_ 2
 e3 = e_ 3
@@ -233,6 +298,7 @@ e1e2 = e1*e2
 e1e3 = e1*e3
 e2e3 = e2*e3
 e1e2e3 = e1e2*e3
+i = e1e2e3
 
 -- * Printing
 
@@ -264,7 +330,7 @@ printTerm first x basis = sign x ++ number ++ basis
 bladeAdd :: BasisBlade -> [BasisBlade] -> [BasisBlade]
 bladeAdd y [] = [y]
 bladeAdd y@(BasisBlade b1 s1) (x@(BasisBlade b2 s2):xs)
-  | b1 == b2      = if s == 0 then xs else BasisBlade b1 s : xs
+  | b1 == b2      = if s ~== 0 then xs else BasisBlade b1 s : xs
   | b1 < b2       = y : x : xs
   | otherwise     = x : bladeAdd y xs
   where s = s1 + s2
