@@ -2,9 +2,10 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                geometric-algebra
-version:             0.3.0.0
+version:             0.3.1
 synopsis:            Geometric algebra calculations in Haskell
--- description:         
+description:         
+  Library for (hopefully) elegant computations using geometric algebra. Built for understanding, not speed.
 license:             MIT
 license-file:        LICENSE
 author:              Pontus Granström
@@ -16,9 +17,33 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Numeric.GeometricAlgebra
-  other-modules:       Numeric.BasisBlade   
-  other-extensions:    TemplateHaskell
-  build-depends:       base >=4.6 && <4.7, digits >=0.2 && <0.3, QuickCheck >=2.6 && <2.7, ieee754 >=0.7 && <0.8
-  hs-source-dirs:      src
-  default-language:    Haskell2010
+  exposed-modules:    Numeric.GeometricAlgebra
+  other-modules:      Numeric.BasisBlade, Numeric.Multivector 
+  other-extensions:   TemplateHaskell
+  hs-source-dirs:     src
+  default-language:   Haskell2010
+  build-depends:      base    == 4.6.*, 
+                      digits  == 0.2.*,
+                      ieee754 == 0.7.*
+  
+test-suite tests
+  type:               exitcode-stdio-1.0
+  main-is:            MainTests.hs
+  hs-source-dirs:     tests, src
+  default-language:   Haskell2010
+  build-depends:      base           == 4.6.*, 
+                      QuickCheck     == 2.6.*, 
+                      test-framework,
+                      test-framework-th,
+                      test-framework-quickcheck2,
+                      digits  == 0.2.*,
+                      ieee754 == 0.7.*
+source-repository head
+  type:       git
+  location:   git@github.com:pnutus/geometric-algebra.git 
+  -- git://github.com/pnutus/geometric-algebra.git
+  
+source-repository this
+  type:       git
+  location:   git@github.com:pnutus/geometric-algebra.git
+  tag:        v0.3.1
