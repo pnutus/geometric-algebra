@@ -1,6 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
-
-module Numeric.BasisBlade where
+module Numeric.GeometricAlgebra.BasisBlade where
 
 import Data.Word
 import Data.Bits
@@ -41,15 +39,8 @@ geo :: BasisBlade -> BasisBlade -> BasisBlade
      where bits = b1 `xor` b2
            coeff = s1 * s2 * canonicalSign b1 b2
            
-
-
-reverse :: BasisBlade -> BasisBlade
-reverse x | squareSign x == 1 = x
-          | otherwise         = negate x
-
-negate :: BasisBlade -> BasisBlade
-negate (BasisBlade b s) = BasisBlade b (-s)
-
+-- | Figures out the sign associated with the canonical ordering of the 
+-- basis elements in a geometric product.
 canonicalSign :: Bitmap -> Bitmap -> Double
 canonicalSign 0 _   = 1
 canonicalSign _ 0   = 1
@@ -58,6 +49,12 @@ canonicalSign b1 b2 | even minuses = 1
   where minuses = sum $ map shiftand [1..(bitSize b2 - 1)] 
         shiftand n = popCount $ b1.&.(shift b2 n)
 
+reverse :: BasisBlade -> BasisBlade
+reverse x | squareSign x == 1 = x
+          | otherwise         = negate x
+
+negate :: BasisBlade -> BasisBlade
+negate (BasisBlade b s) = BasisBlade b (-s)
 
 isOfGrade :: Int -> BasisBlade -> Bool
 isOfGrade n blade = grade blade == n
@@ -101,8 +98,12 @@ instance Show BasisBlade where
                        _    -> show s
 
 printBasis basis = intercalate "e" $ "" : map show (bitFilter basis [1..])
-     
-bitFilter bits = maskFilter (bitsToBool $ digitsRev 2 bits)
-    where bitsToBool = map (== 1)
-        
+
+-- | Filters a list using a bitmask.
+bitFilter :: (Integral a) => a -> [b] -> [b]     
+bitFilter bits = maskFilter (map boolFromBit $ digitsRev 2 bits)
+    where boolFromBit = (== 1)
+
+-- | Filters a list using another list of Booleans (a mask).
+maskFilter :: [Bool] -> [a] -> [a] 
 maskFilter mask xs = map snd $ filter fst (zip mask xs)

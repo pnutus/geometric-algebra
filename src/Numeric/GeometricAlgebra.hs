@@ -23,4 +23,4 @@ module Numeric.GeometricAlgebra
   , e_, e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3, i
   ) where
 
-import Numeric.Multivector
+import Numeric.GeometricAlgebra.Multivector
