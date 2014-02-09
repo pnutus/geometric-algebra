@@ -2,8 +2,6 @@ module Numeric.GeometricAlgebra.BasisBlade where
 
 import Data.Word
 import Data.Bits
-import Data.List (intercalate)
-import Data.Digits (digitsRev)
 import Data.AEq
 import Prelude hiding (negate, reverse)
 
@@ -48,6 +46,9 @@ canonicalSign b1 b2 | even minuses = 1
            			    | otherwise    = -1
   where minuses = sum $ map shiftand [1..(bitSize b2 - 1)] 
         shiftand n = popCount $ b1.&.(shift b2 n)
+-- 
+-- metric :: Bitmap -> Bitmap -> Double
+-- metric b1 b2 = product $ bitFilter (b1 .&. b2) conformalMetric
 
 reverse :: BasisBlade -> BasisBlade
 reverse x | squareSign x == 1 = x
@@ -86,24 +87,3 @@ scalar :: Double -> BasisBlade
 scalar x = BasisBlade 0 x
 
 e_ n = BasisBlade (bit $ n - 1) 1
-
--- Printing
-
-instance Show BasisBlade where
-  show (BasisBlade 0 s) = show s
-  show (BasisBlade b s) = coeff ++ printBasis b
-    where coeff = case s of 
-                       1    -> ""
-                       (-1) -> "-"
-                       _    -> show s
-
-printBasis basis = intercalate "e" $ "" : map show (bitFilter basis [1..])
-
--- | Filters a list using a bitmask.
-bitFilter :: (Integral a) => a -> [b] -> [b]     
-bitFilter bits = maskFilter (map boolFromBit $ digitsRev 2 bits)
-    where boolFromBit = (== 1)
-
--- | Filters a list using another list of Booleans (a mask).
-maskFilter :: [Bool] -> [a] -> [a] 
-maskFilter mask xs = map snd $ filter fst (zip mask xs)

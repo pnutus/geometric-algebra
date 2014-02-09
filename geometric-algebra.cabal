@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                geometric-algebra
-version:             0.3.1
+version:             0.4.0
 synopsis:            Geometric algebra calculations in Haskell
 description:         
   Library for (hopefully) elegant computations using geometric algebra. Built for understanding, not speed.
@@ -18,14 +18,19 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:    Numeric.GeometricAlgebra
+                      Numeric.GeometricAlgebra.Metric.Conformal,
+                      Numeric.GeometricAlgebra.Metric.Spacetime,
+                      Numeric.GeometricAlgebra.Metric.Euclidean
   other-modules:      Numeric.GeometricAlgebra.BasisBlade, 
-                      Numeric.GeometricAlgebra.Multivector 
+                      Numeric.GeometricAlgebra.Multivector,
+                      Numeric.GeometricAlgebra.Metric
   other-extensions:   TemplateHaskell
   hs-source-dirs:     src
   default-language:   Haskell2010
   build-depends:      base    == 4.6.*, 
                       digits  == 0.2.*,
-                      ieee754 == 0.7.*
+                      ieee754 == 0.7.*,
+                      hmatrix
   
 test-suite tests
   type:               exitcode-stdio-1.0
@@ -38,7 +43,8 @@ test-suite tests
                       test-framework-th,
                       test-framework-quickcheck2,
                       digits  == 0.2.*,
-                      ieee754 == 0.7.*
+                      ieee754 == 0.7.*,
+                      hmatrix
                       
 source-repository head
   type:       git
@@ -48,4 +54,4 @@ source-repository head
 source-repository this
   type:       git
   location:   git@github.com:pnutus/geometric-algebra.git
-  tag:        v0.3.1
+  tag:        v0.4.0

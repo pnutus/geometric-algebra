@@ -19,8 +19,6 @@ module Numeric.GeometricAlgebra
   , (<>), gradeProject
   -- * Constants
   , tupi, tau
-  -- * Basis elements
-  , e_, e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3, i
   ) where
 
-import Numeric.GeometricAlgebra.Multivector
+import Numeric.GeometricAlgebra.Metric

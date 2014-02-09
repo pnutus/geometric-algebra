@@ -5,6 +5,9 @@ import Numeric.GeometricAlgebra.BasisBlade (BasisBlade(..))
 import Data.List (find)
 import GHC.Exts (sortWith)
 import Data.AEq
+import Data.List (intercalate)
+import Data.Digits (digitsRev)
+import Numeric (showGFloat)
 
 -- | Multivectors represent both geometric objects and operations in geometric
 -- algebra. They are represented as a sum of basis blades, which isn't optimal
@@ -12,16 +15,7 @@ import Data.AEq
 -- multiplied (using the geometric, outer and verious inner products), 
 -- exponentiated and more, as if they were just ordinary numbers.
 
-data Multivector = Mv [BasisBlade]
-                 | Scalar Double
-                 | Vec2 Double Double
-                 | Bivec2 Double
-                 | Rotor2 Double Double
-                 | Vec3 Double Double Double
-                 | Bivec3 Double Double Double
-                 | Trivec3 Double
-                 | Rotor3 Double Double Double Double
-                 deriving (Eq)
+data Multivector = Mv [BasisBlade] deriving (Eq)
 
 -- * Operators
 
@@ -41,15 +35,11 @@ instance Fractional Multivector where
 -- | Geometric product. Same as '*'.
 geo :: Multivector -> Multivector -> Multivector
 geo x@(Mv _) y@(Mv _) = mvProduct B.geo x y
-geo (Vec3 x1 y1 z1) (Vec3 x2 y2 z2)
-  = Rotor3 (x1*x2 + y1*y2 + z1*z2) (x1*y2 - x2*y1) 
-           (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
 
 -- | Dot (inner) product.
 dot :: Multivector -> Multivector -> Multivector
 dot x@(Mv _) y@(Mv _) = mvProduct B.dot x y
-dot (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Scalar (x1*x2 + y1*y2 + z1*z2)
 
 -- | Dot (inner) product. Same as 'dot'. (alt-Q on mac)
 infixl 9 •
@@ -66,8 +56,6 @@ infixl 9 ⎣
 -- | Outer product. Same as '∧'.
 out :: Multivector -> Multivector -> Multivector
 out x@(Mv _) y@(Mv _) = mvProduct B.out x y
-out (Vec3 x1 y1 z1) (Vec3 x2 y2 z2) = Bivec3 (x1*y2 - x2*y1) 
-          (x1*z2 - x2*z1) (y1*z2 - y2*z1)
 
 -- | Outer product. Same as 'out'.
 infixl 8 ∧
@@ -198,66 +186,35 @@ mvAtan2 y x = mvFromScalar $ atan2 (getScalar y) (getScalar x)
 -- * Predicates
 
 isScalar :: Multivector -> Bool
-isScalar (Mv [])    = True
-isScalar (Mv [x])   = B.isScalar x
-isScalar (Scalar _) = True
-isScalar _          = False
+isScalar (Mv [])  = True
+isScalar (Mv [x]) = B.isScalar x
 
 isVector :: Multivector -> Bool
-isVector (Mv blades)  = all B.isVector blades
-isVector (Vec2 _ _)   = True
-isVector (Vec3 _ _ _) = True
-isVector _            = False
+isVector (Mv blades) = all B.isVector blades
 
 isBivector :: Multivector -> Bool
-isBivector (Mv blades)    = all B.isBivector blades
-isBivector (Bivec2 _)     = True
-isBivector (Bivec3 _ _ _) = True
-isBivector _              = False
+isBivector (Mv blades) = all B.isBivector blades
 
 isTrivector :: Multivector -> Bool
-isTrivector (Mv blades)   = all B.isTrivector blades
-isTrivector (Trivec3 _)   = True
-isTrivector _             = False
+isTrivector (Mv blades) = all B.isTrivector blades
 
 isRotor :: Multivector -> Bool
-isRotor (Mv blades)       = all (\b -> B.isScalar b || B.isBivector b) blades
-isRotor (Rotor2 _ _)      = True
-isRotor (Rotor3 _ _ _ _)  = True
-isRotor _                 = False
+isRotor (Mv blades) = all (\b -> B.isScalar b || B.isBivector b) blades
 
 hasPosSquare :: Multivector -> Bool
-hasPosSquare (Mv blades)      = all ((1 ==) . B.squareSign) blades
-hasPosSquare (Scalar _)       = True
-hasPosSquare (Vec2 _ _)       = True
-hasPosSquare (Vec3 _ _ _)     = True
-hasPosSquare _                = False
+hasPosSquare (Mv blades) = all ((1 ==) . B.squareSign) blades
 
 hasNegSquare :: Multivector -> Bool
-hasNegSquare (Mv blades)      = all ((-1 ==) . B.squareSign) blades
-hasNegSquare x                = isBivector x || isTrivector x
+hasNegSquare (Mv blades) = all ((-1 ==) . B.squareSign) blades
 
 hasNullSquare :: Multivector -> Bool
-hasNullSquare (Mv [])     = True
-hasNullSquare (Scalar 0)  = True
-hasNullSquare _           = False
+hasNullSquare (Mv [])    = True
+hasNullSquare _          = False
 
 hasScalarSquare :: Multivector -> Bool
 hasScalarSquare x = hasPosSquare x || hasNegSquare x || hasNullSquare x
 
 -- * Conversions
-
--- | Creates arbitrary Multivectors from specialized types.
-mvGeneralize :: Multivector -> Multivector
-mvGeneralize a@(Mv _) = a
-mvGeneralize (Scalar x) = x *> 1
-mvGeneralize (Vec2 x y) = x *> e1 + y *> e2
-mvGeneralize (Bivec2 i) = i *> e1e2
-mvGeneralize (Rotor2 r i) = r *> 1 + i *> e1e2
-mvGeneralize (Vec3 x y z) = x *> e1 + y *> e2 + z *> e3
-mvGeneralize (Bivec3 i j k) = i *> e1e2 + j *> e1e3 + k *> e2e3
-mvGeneralize (Trivec3 i) = i *> e1e2e3
-mvGeneralize (Rotor3 r i j k) = r *> 1 + i *> e1e2 + j *> e1e3 + k *> e2e3
 
 mvFromScalar :: Double -> Multivector
 mvFromScalar 0 = Mv []
@@ -274,30 +231,10 @@ getScalar (Mv blades)
 e_ :: Int -> Multivector
 e_ n = Mv [B.e_ n]
 
-e1, e2, e3, e1e2, e1e3, e2e3, e1e2e3 :: Multivector
-e1 = e_ 1
-e2 = e_ 2
-e3 = e_ 3
-e1e2 = e1*e2
-e1e3 = e1*e3
-e2e3 = e2*e3
-e1e2e3 = e1e2*e3
-
--- | Pseudoscalar for 3-dimensional GA. Same as 'e1e2e3'.
-i :: Multivector
-i = e1e2e3
-
 -- * Printing
 
 instance Show Multivector where
-  show (Mv bs) = printTerms [(x,B.printBasis b) | BasisBlade b x <- bs]
-  show (Scalar x) = printTerm True x ""
-  show (Vec3 e1 e2 e3) = 
-    printTerms [(e1,"e1"),(e2,"e2"),(e3,"e3")]
-  show (Rotor3 x e12 e13 e23) = 
-    printTerms [(x,""),(e12,"e1e2"),(e13,"e1e3"),(e23,"e2e3")]
-  show (Bivec3 e12 e13 e23) = 
-    printTerms [(e12,"e1e2"),(e13,"e1e3"),(e23,"e2e3")]
+  show (Mv bs) = printTerms [(x, printBasis b) | BasisBlade b x <- bs]
 
 printTerms :: [(Double, String)] -> String
 printTerms [] = "0"
@@ -309,8 +246,34 @@ printTerm :: Bool -> Double -> String -> String
 printTerm first x basis = sign x ++ number ++ basis
   where sign x | first      = if x < 0 then "-" else ""
                | otherwise  = if x < 0 then " - " else " + "
-        number = if absx == 1 && basis /= "" then "" else show absx
-        absx   = abs x
+        number = if absx == 1 && basis /= "" then "" else absString
+        absString = showGFloat (Just 3) absx ""
+        absx      = abs x
+        
+printBasis basis = intercalate "e" $ "" : map show (bitFilter basis [1..])
+
+-- | Converts a binary number to a list of ones and zeroes, beginning with the least significant bit.
+--
+-- >>> listOfBits 6
+-- [0, 1, 1]
+listOfBits :: (Integral a) => a -> [a]
+listOfBits = digitsRev 2
+
+-- | Filters a list using a bitmask. A combination of 'listOfBits' and 'maskFilter'.
+--
+-- >>> bitFilter 6 [1, 2, 3, 4, 5]
+-- [2, 3]
+bitFilter :: (Integral a) => a -> [b] -> [b]     
+bitFilter bits = maskFilter (map boolFromBit . listOfBits $ bits)
+    where boolFromBit = (== 1)
+
+-- | Filters a list using another list of 'Boolean's (a mask). If one input list is short, excess elements of the longer list are discarded (same as for 'zip'). 
+--
+-- >>> maskFilter [False, True, True] [1, 2, 3, 4, 5]
+-- [2, 3]
+maskFilter :: [Bool] -> [a] -> [a] 
+maskFilter mask xs = map snd $ filter fst (zip mask xs)
+
 
 -- * Blade stuff
 
