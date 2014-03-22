@@ -1,4 +1,8 @@
--- | The conformal metric consists of three euclidean basis vectors ('e1', 'e2', 'e3'), the point at the origin ('no') and the point at infinity ('ni'), where @no • ei = ni • ei = 0@, @no • no = ni • ni = 0@ and @no • ni = -1@.
+-- | The conformal metric consists of three euclidean basis vectors ('e1', 'e2', 'e3'), the point at the origin ('no') and the point at infinity ('ni'), where:
+--
+-- prop> no `dot` e{i} = ni `dot` e{i} = 0
+-- prop> no `dot` no = ni `dot` ni = 0
+-- prop> no `dot` ni = -1
 
 module Numeric.GeometricAlgebra.Metric.Conformal 
   (no, e1, e2, e3, ni) where

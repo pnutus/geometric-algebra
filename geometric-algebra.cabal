@@ -23,7 +23,8 @@ library
                       Numeric.GeometricAlgebra.Metric.Euclidean
   other-modules:      Numeric.GeometricAlgebra.BasisBlade, 
                       Numeric.GeometricAlgebra.Multivector,
-                      Numeric.GeometricAlgebra.Metric
+                      Numeric.GeometricAlgebra.Metric,
+                      Numeric.LinearCombination
   other-extensions:   TemplateHaskell
   hs-source-dirs:     src
   default-language:   Haskell2010

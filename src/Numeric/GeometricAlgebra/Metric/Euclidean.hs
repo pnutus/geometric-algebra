@@ -15,7 +15,7 @@ e1e3 = e1*e3
 e2e3 = e2*e3
 e1e2e3 = e1e2*e3
 
--- | Pseudoscalar for 3-dimensional GA. Same as 'e1e2e3'.
+-- Pseudoscalar for 3-dimensional GA. Same as 'e1e2e3'.
 i :: Multivector
 i = e1e2e3
 

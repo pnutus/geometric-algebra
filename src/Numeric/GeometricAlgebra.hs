@@ -3,7 +3,17 @@
 -- multiplied, exponentiated with expected results.
 -- For more information on GA, see the
 -- <http://en.wikipedia.org/wiki/Geometric_algebra Wikipedia article> on GA
--- (including referenced literature).
+-- (including the literature referenced there).
+--
+-- To start calculating, you need some basis vectors. 
+-- Import /one/ of the metric modules ('Euclidean', 'Spacetime', 'Conformal')
+--
+-- > import Numeric.GeometricAlgebra.Metric.Euclidean
+--
+-- and you're all set!
+--
+-- >>> (e1 + e2)*e2
+-- 1.0 + e1∧e2
 
 module Numeric.GeometricAlgebra 
   ( Multivector
