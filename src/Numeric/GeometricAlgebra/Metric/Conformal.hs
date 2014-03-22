@@ -1,4 +1,7 @@
-module Numeric.GeometricAlgebra.Metric.Conformal where
+-- | The conformal metric consists of three euclidean basis vectors ('e1', 'e2', 'e3'), the point at the origin ('no') and the point at infinity ('ni'), where @no • ei = ni • ei = 0@, @no • no = ni • ni = 0@ and @no • ni = -1@.
+
+module Numeric.GeometricAlgebra.Metric.Conformal 
+  (no, e1, e2, e3, ni) where
 
 import Numeric.GeometricAlgebra.Metric
 import Numeric.GeometricAlgebra.Multivector (Multivector, basisVector)

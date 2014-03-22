@@ -1,4 +1,7 @@
-module Numeric.GeometricAlgebra.Metric.Euclidean where
+-- | The euclidean metric consists of three euclidean basis vectors ('e1', 'e2', 'e3').
+
+module Numeric.GeometricAlgebra.Metric.Euclidean 
+  (e1, e2, e3) where
 
 import Numeric.GeometricAlgebra.Metric
 import Numeric.GeometricAlgebra.Multivector (Multivector, basisVector)
