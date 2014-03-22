@@ -6,7 +6,7 @@ module Numeric.LinearCombination
   , basisChangeUsing
   , Numeric.LinearCombination.filter
   , find
-  , toList
+  , elementsToList
   , scalarMult
   , zero
   , showUsing
@@ -22,16 +22,12 @@ newtype LinearCombination coefficient element
   = LinComb [Term coefficient element]
   deriving (Eq)
 data Term coefficient element = coefficient :* element
-                             -- | ZeroTerm -- might be useful?
   deriving (Eq, Show)
 
 instance (Num a) => Monad (Term a) where
   (c :* e) >>= f = (c * c') :* e'
      where (c' :* e') = f e
   return x = 1 :* x
-
-instance Functor (Term a) where
-  fmap f (c :* e) = (c :* f e)
 
 instance (Num a, AEq a, Eq b, Ord b) => Num (LinearCombination a b) where
   (LinComb terms) + (LinComb terms') = LinComb $ foldr addTerm short long
@@ -80,8 +76,8 @@ find :: (Num a, AEq a, Eq b, Ord b)
           -> Maybe (Term a b)
 find p (LinComb terms) = L.find (p . element) terms
 
-toList :: LinearCombination a b -> [b]
-toList (LinComb terms) = map element terms
+elementsToList :: LinearCombination a b -> [b]
+elementsToList (LinComb terms) = map element terms
 
 element :: Term a b -> b
 element (c :* e) = e
@@ -116,11 +112,11 @@ zero = LinComb []
 
 -- * Printing
 
-instance (Show a, RealFloat a, AEq a, Ord a, Show b) 
+instance (Show a, Num a, AEq a, Ord a, Show b) 
       => Show (LinearCombination a b) where
   show = showUsing show
 
-showUsing :: (Show a, RealFloat a, AEq a, Ord a) 
+showUsing :: (Show a, Num a, AEq a, Ord a) 
           => (b -> String) -> LinearCombination a b 
           -> String
 showUsing _ (LinComb []) = "0"
@@ -129,14 +125,14 @@ showUsing showElement (LinComb terms) = concat $ first : rest
         rest  = map (showTerm False) (tail terms)
         showTerm = showTermUsing showElement
         
-showTermUsing :: (Show a, RealFloat a, AEq a, Ord a)
+showTermUsing :: (Show a, Num a, AEq a, Ord a)
               => (b -> String) -> Bool -> Term a b 
               -> String
 showTermUsing showElement first (c :* e) = sign ++ number ++ eString
   where sign | first      = if c < 0 then "-" else ""
              | otherwise  = if c < 0 then " - " else " + "
         number = if absc ~== 1 && eString /= "" then "" else absString
-        absString = showGFloat (Just 3) absc ""
+        absString = show absc--GFloat (Just 3) absc ""
         absc      = abs c
         eString = showElement e
 

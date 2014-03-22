@@ -240,19 +240,19 @@ mvAtan2 y x = mvFromScalar $ atan2 (getScalar y) (getScalar x)
 
 isScalar :: Multivector -> Bool
 isScalar 0  = True
-isScalar mv = all B.isScalar (LC.toList $ blades mv)
+isScalar mv = all B.isScalar (LC.elementsToList $ blades mv)
 
 isVector :: Multivector -> Bool
-isVector mv = all B.isVector (LC.toList $ blades mv)
+isVector mv = all B.isVector (LC.elementsToList $ blades mv)
 
 isBivector :: Multivector -> Bool
-isBivector mv = all B.isBivector (LC.toList $ blades mv)
+isBivector mv = all B.isBivector (LC.elementsToList $ blades mv)
 
 isTrivector :: Multivector -> Bool
-isTrivector mv = all B.isTrivector (LC.toList $ blades mv)
+isTrivector mv = all B.isTrivector (LC.elementsToList $ blades mv)
 
 isRotor :: Multivector -> Bool
-isRotor mv = all B.isRotor (LC.toList $ blades mv)
+isRotor mv = all B.isRotor (LC.elementsToList $ blades mv)
 
 hasPosSquare :: Multivector -> Bool
 hasPosSquare mv = hasScalarSquare mv && getScalar (mv^2) > 0

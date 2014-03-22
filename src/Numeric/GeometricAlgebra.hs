@@ -12,6 +12,7 @@ module Numeric.GeometricAlgebra
   , (∧), out
   , (•), dot
   , (⎦), (⎣)
+  , (*>)
   , mvReverse
   , sandwich
   , rotorBetween
