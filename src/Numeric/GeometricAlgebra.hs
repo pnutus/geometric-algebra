@@ -12,7 +12,6 @@ module Numeric.GeometricAlgebra
   , (∧), out
   , (•), dot
   , (⎦), (⎣)
-  , (*>), (+>) 
   , mvReverse
   , sandwich
   , rotorBetween
@@ -21,4 +20,4 @@ module Numeric.GeometricAlgebra
   , tupi, tau
   ) where
 
-import Numeric.GeometricAlgebra.Metric
+import Numeric.GeometricAlgebra.Multivector

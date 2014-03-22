@@ -2,12 +2,15 @@ module Numeric.GeometricAlgebra.Multivector where
 
 import qualified Numeric.GeometricAlgebra.BasisBlade as B
 import Numeric.GeometricAlgebra.BasisBlade (BasisBlade(..))
-import Data.List (find)
+import qualified Numeric.LinearCombination as LC
+import Numeric.LinearCombination (LinearCombination(..), Term(..))
+import Numeric.GeometricAlgebra.Metric
+import Data.List (find, transpose)
 import GHC.Exts (sortWith)
 import Data.AEq
 import Data.List (intercalate)
 import Data.Digits (digitsRev)
-import Numeric (showGFloat)
+import Data.Bits ((.&.))
 
 -- | Multivectors represent both geometric objects and operations in geometric
 -- algebra. They are represented as a sum of basis blades, which isn't optimal
@@ -15,31 +18,54 @@ import Numeric (showGFloat)
 -- multiplied (using the geometric, outer and verious inner products), 
 -- exponentiated and more, as if they were just ordinary numbers.
 
-data Multivector = Mv [BasisBlade] deriving (Eq)
+data Multivector = Mv { metric :: Metric
+                      , blades :: Blades
+                      }
+  deriving (Eq)
+type Blades = LinearCombination Double BasisBlade
+
 
 -- * Operators
 
 instance Num Multivector where
-	(Mv bs1) + (Mv bs2) = let [short, long] = sortWith length [bs1, bs2] 
-                        in  Mv $ foldr bladeAdd long short
+	mv + mv' = metricCombine mv mv' $ blades mv + blades mv'
 	(*) = geo
-	negate (Mv blades) = Mv $ map B.negate blades
-	abs = mvFromScalar . sqrt . getScalar . mvSquare
+	negate = mapBlades negate
+	abs = mvFromScalar . sqrt . getScalar . absq
 	signum = normalize
 	fromInteger = mvFromScalar . fromInteger
 
 instance Fractional Multivector where
-	recip x = mvReverse x * (mvFromScalar . recip . getScalar $ mvSquare x)
+	recip x = mvReverse x * (mvFromScalar . recip . getScalar $ absq x)
 	fromRational = mvFromScalar . fromRational
 
+-- * Instance helpers
+
+mapBlades :: (Blades -> Blades)
+          -> Multivector -> Multivector
+mapBlades f mv = Mv (metric mv) (f $ blades mv)
+
+-- | 
+metricCombine :: Multivector -> Multivector 
+              -> Blades 
+              -> Multivector
+metricCombine mv mv' blades
+  | isScalar mv     = Mv m' blades
+  | isScalar mv'    = Mv m  blades
+  | sameMetric      = Mv m  blades
+  | otherwise       = error "Metrics have to be the same (except for scalars)."
+  where sameMetric = m == m'
+        m  = metric mv
+        m' = metric mv'
+        
+        
 -- | Geometric product. Same as '*'.
 geo :: Multivector -> Multivector -> Multivector
-geo x@(Mv _) y@(Mv _) = mvProduct B.geo x y
-
+geo = mvProduct B.geo
 
 -- | Dot (inner) product.
 dot :: Multivector -> Multivector -> Multivector
-dot x@(Mv _) y@(Mv _) = mvProduct B.dot x y
+dot = mvProduct B.dot
 
 -- | Dot (inner) product. Same as 'dot'. (alt-Q on mac)
 infixl 9 •
@@ -55,29 +81,56 @@ infixl 9 ⎣
 
 -- | Outer product. Same as '∧'.
 out :: Multivector -> Multivector -> Multivector
-out x@(Mv _) y@(Mv _) = mvProduct B.out x y
+out = mvProduct B.out
 
 -- | Outer product. Same as 'out'.
 infixl 8 ∧
 (∧) = out
 
 -- | Used to implement the different products.
-mvProduct :: (BasisBlade -> BasisBlade -> BasisBlade) 
+mvProduct :: (BasisBlade -> BasisBlade -> Term Double BasisBlade) 
            -> Multivector -> Multivector -> Multivector
-mvProduct op (Mv bs1) (Mv bs2) = Mv $ bladeSimplify products
-  where products = [result | b1 <- bs1, b2 <- bs2, 
-                    let result = b1 `op` b2,
-                    B.coeff result /= 0]
+mvProduct op mv mv' = metricCombine mv mv' $ 
+                      metricProduct op (metric mv) (blades mv) (blades mv')
+
+-- * Metric products
+
+metricProduct :: (BasisBlade -> BasisBlade -> Term Double BasisBlade) 
+              -> Metric
+              -> (Blades -> Blades -> Blades)
+metricProduct op metric bs1 bs2 = case metric of
+  EuclideanMetric          -> LC.multiplyUsing op bs1 bs2
+  DiagonalMetric _ squares -> LC.multiplyUsing metricOp bs1 bs2 
+    where metricOp = (metricBladeProduct squares op)
+  Metric _ squares m       -> fromEigenmetric m $ bs'
+    where bs' = LC.multiplyUsing metricOp bs1' bs2'
+          metricOp = metricBladeProduct squares op
+          [bs1', bs2'] = map (toEigenmetric m) [bs1, bs2]  
+
+metricBladeProduct :: [Square]
+              -> (BasisBlade -> BasisBlade -> Term Double BasisBlade)
+              -> (BasisBlade -> BasisBlade -> Term Double BasisBlade)
+metricBladeProduct squares op b b' = (factor * c) :* e
+  where (c :* e) = b `op` b' 
+        factor = product $ bitFilter (b .&. b') squares
+
+fromEigenmetric :: MetricMatrix -> Blades -> Blades
+fromEigenmetric m = toEigenmetric (transpose m)
+
+toEigenmetric :: MetricMatrix -> Blades -> Blades
+toEigenmetric m = LC.basisChangeUsing (metricBladeTransform m)
+  
+metricBladeTransform :: MetricMatrix -> BasisBlade -> Blades
+metricBladeTransform m b = foldr step (LinComb [1 :* B.scalar]) rows
+  where step row bs = LC.multiplyUsing B.out bs' bs
+          where bs' = LinComb [c :* e | (c, e) <- zip row es, c /= 0 ]
+        es = map B.e_ [1..]
+        rows = bitFilter b m
 
 -- | Multiplication by scalar.
 infixl 7 *>
 (*>) :: Double -> Multivector -> Multivector
-x *> (Mv blades) = Mv $ map (x B.*>) blades
-
--- | Addition by scalar.
-infixl 6 +>
-(+>) :: Double -> Multivector -> Multivector
-x +> mv = mvFromScalar x + mv
+x *> mv = mapBlades (LC.scalarMult x) mv
 
 -- | Normalizes a 'Multivector' so that it squares to 1 or -1. Same as signum.
 normalize :: Multivector -> Multivector
@@ -85,7 +138,7 @@ normalize a = a / abs a
 
 -- | Reverses a 'Multivector'.
 mvReverse :: Multivector -> Multivector
-mvReverse (Mv blades) = Mv $ map B.reverse blades
+mvReverse = mapBlades (LC.operationUsing B.bladeReverse)
 
 -- | Sandwiching a by r is the same as r * a * r^-1.
 sandwich :: Multivector -> Multivector -> Multivector
@@ -103,12 +156,12 @@ infixl 9 <>
 
 -- | Synonym for '<>'.
 gradeProject :: Multivector -> Int -> Multivector
-gradeProject (Mv blades) n = Mv $ filter (B.isOfGrade n) blades
+gradeProject mv n = mapBlades (LC.filter (`B.isOfGrade` n)) mv
 
 -- | The product of the squares of the constituent vector factors of a
 -- Multivector.
-mvSquare :: Multivector -> Multivector
-mvSquare a@(Mv _) = a * mvReverse a
+absq :: Multivector -> Multivector
+absq a = a * mvReverse a
 
 -- * Mathematical functions
 
@@ -186,71 +239,57 @@ mvAtan2 y x = mvFromScalar $ atan2 (getScalar y) (getScalar x)
 -- * Predicates
 
 isScalar :: Multivector -> Bool
-isScalar (Mv [])  = True
-isScalar (Mv [x]) = B.isScalar x
+isScalar 0  = True
+isScalar mv = all B.isScalar (LC.toList $ blades mv)
 
 isVector :: Multivector -> Bool
-isVector (Mv blades) = all B.isVector blades
+isVector mv = all B.isVector (LC.toList $ blades mv)
 
 isBivector :: Multivector -> Bool
-isBivector (Mv blades) = all B.isBivector blades
+isBivector mv = all B.isBivector (LC.toList $ blades mv)
 
 isTrivector :: Multivector -> Bool
-isTrivector (Mv blades) = all B.isTrivector blades
+isTrivector mv = all B.isTrivector (LC.toList $ blades mv)
 
 isRotor :: Multivector -> Bool
-isRotor (Mv blades) = all (\b -> B.isScalar b || B.isBivector b) blades
+isRotor mv = all B.isRotor (LC.toList $ blades mv)
 
 hasPosSquare :: Multivector -> Bool
-hasPosSquare (Mv blades) = all ((1 ==) . B.squareSign) blades
+hasPosSquare mv = hasScalarSquare mv && getScalar (mv^2) > 0
 
 hasNegSquare :: Multivector -> Bool
-hasNegSquare (Mv blades) = all ((-1 ==) . B.squareSign) blades
+hasNegSquare mv = hasScalarSquare mv && getScalar (mv^2) < 0
 
 hasNullSquare :: Multivector -> Bool
-hasNullSquare (Mv [])    = True
-hasNullSquare _          = False
+hasNullSquare mv = hasScalarSquare mv && getScalar (mv^2) == 0
 
 hasScalarSquare :: Multivector -> Bool
-hasScalarSquare x = hasPosSquare x || hasNegSquare x || hasNullSquare x
+hasScalarSquare mv = isScalar $ mv^2
 
 -- * Conversions
 
 mvFromScalar :: Double -> Multivector
-mvFromScalar 0 = Mv []
-mvFromScalar x = Mv [B.scalar x]
+mvFromScalar 0 = Mv EuclideanMetric LC.zero
+mvFromScalar x = Mv EuclideanMetric (LinComb [x :* B.scalar])
 
 getScalar :: Multivector -> Double
-getScalar (Mv blades) 
-  | Just blade <- find B.isScalar blades = coeff blade
-  | otherwise					    			         = 0
+getScalar mv 
+  | Just (c :* _) <- LC.find B.isScalar (blades mv) = c
+  | otherwise					    			                    = 0
 
 -- * Basis vectors
 
--- | Generates a basis vector, e.g. e_1.
-e_ :: Int -> Multivector
-e_ n = Mv [B.e_ n]
+-- | Generates basis vector n from a 'Metric'.
+basisVector :: Metric -> Int -> Multivector
+basisVector metric n = Mv metric $ LinComb [1 :* (B.e_ n)]
 
 -- * Printing
 
 instance Show Multivector where
-  show (Mv bs) = printTerms [(x, printBasis b) | BasisBlade b x <- bs]
+  show mv = LC.showUsing showBlade (blades mv)
+    where showBlade = showBladeWithNames (getNames . metric $ mv)
 
-printTerms :: [(Double, String)] -> String
-printTerms [] = "0"
-printTerms ((x,b):ts) = concat $ first : rest
-  where first = printTerm True x b 
-        rest  = map (uncurry $ printTerm False) ts
-        
-printTerm :: Bool -> Double -> String -> String
-printTerm first x basis = sign x ++ number ++ basis
-  where sign x | first      = if x < 0 then "-" else ""
-               | otherwise  = if x < 0 then " - " else " + "
-        number = if absx == 1 && basis /= "" then "" else absString
-        absString = showGFloat (Just 3) absx ""
-        absx      = abs x
-        
-printBasis basis = intercalate "e" $ "" : map show (bitFilter basis [1..])
+showBladeWithNames names blade = intercalate "∧" $ bitFilter blade names
 
 -- | Converts a binary number to a list of ones and zeroes, beginning with the least significant bit.
 --
@@ -275,24 +314,10 @@ maskFilter :: [Bool] -> [a] -> [a]
 maskFilter mask xs = map snd $ filter fst (zip mask xs)
 
 
--- * Blade stuff
-
-bladeAdd :: BasisBlade -> [BasisBlade] -> [BasisBlade]
-bladeAdd y [] = [y]
-bladeAdd y@(BasisBlade b1 s1) (x@(BasisBlade b2 s2):xs)
-  | b1 == b2      = if s ~== 0 then xs else BasisBlade b1 s : xs
-  | b1 < b2       = y : x : xs
-  | otherwise     = x : bladeAdd y xs
-  where s = s1 + s2
-
-bladeSimplify :: [BasisBlade] -> [BasisBlade]
-bladeSimplify = foldr bladeAdd []
-
 -- * Comparisons
 
 instance AEq Multivector where
   (===) = (==)
-  (~==) = mvEqual
-
-mvEqual :: Multivector -> Multivector -> Bool
-(Mv bs1) `mvEqual` (Mv bs2) = and $ zipWith (~==) bs1 bs2 
+  mv ~== mv' = metricEq && bladesEq
+    where bladesEq = (blades mv) ~== (blades mv')
+          metricEq = (metric mv) == (metric mv')
