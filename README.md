@@ -6,14 +6,13 @@ A library for Geometric Algebra calculations in Haskell.
 Installation
 ------------
 
-Just use Cabal:
+The package is not yet on Hackage, so you need to download from here and install:
 
 ```
-cd ~/path/to/geometric-algebra
+git clone git@github.com:pnutus/geometric-algebra.git
+cd geometric-algebra
 cabal install
 ```
-
-The package is not yet on Hackage, so you need to download from here and install.
 
 Usage
 -----
