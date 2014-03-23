@@ -145,8 +145,13 @@ sandwich :: Multivector -> Multivector -> Multivector
 sandwich r a = r * a * recip r
 
 -- | Generates a rotor to rotate direction a into direction b.
+-- If @a != -b@, generates one of the rotors between a and b.
 rotorBetween :: Multivector -> Multivector -> Multivector
-rotorBetween a b = b * normalize (a + b)
+rotorBetween a b | a + b == 0 = rotor
+                 | otherwise  = b * normalize (a + b)
+  where rotor = normalize $ if bivec 1 == 0 then bivec 2 else bivec 1
+        bivec n = a ∧ e_ n
+        e_ = basisVector (metric a)
 
 
 -- | Grade projection, the grade n part of a multivector A.
@@ -286,8 +291,6 @@ vectorFromComponents xs = sum $ zipWith (*>) xs basisVectors
 -- | Generates basis vector n from a 'Metric'.
 basisVector :: Metric -> Int -> Multivector
 basisVector metric n = Mv metric $ LinComb [1 :* (B.e_ n)]
-
-  
 
 -- * Printing
 
