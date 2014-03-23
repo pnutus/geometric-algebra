@@ -277,11 +277,17 @@ getScalar mv
   | Just (c :* _) <- LC.find B.isScalar (blades mv) = c
   | otherwise					    			                    = 0
 
+vectorFromComponents :: [Double] -> Multivector
+vectorFromComponents xs = sum $ zipWith (*>) xs basisVectors
+  where basisVectors = map (basisVector EuclideanMetric) [1..]
+
 -- * Basis vectors
 
 -- | Generates basis vector n from a 'Metric'.
 basisVector :: Metric -> Int -> Multivector
 basisVector metric n = Mv metric $ LinComb [1 :* (B.e_ n)]
+
+  
 
 -- * Printing
 

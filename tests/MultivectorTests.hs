@@ -2,15 +2,17 @@
 
 module MultivectorTests where
 
-import Numeric.Multivector
 import Test.Framework.TH
 import Test.Framework
 import Test.Framework.Providers.QuickCheck2
 import Test.QuickCheck
+
 import Control.Monad (liftM)
 import Data.List (sort)
 import Data.AEq
-import BasisBladeTests
+import Numeric.GeometricAlgebra.Multivector
+import Numeric.GeometricAlgebra.Metric
+import Numeric.LinearCombination
 
 tests = $(testGroupGenerator)
 
@@ -36,16 +38,29 @@ prop_rotate = forAll (vectorOf 2 $ liftM normalize gen_vector) $ \[a,b] ->
   let rotor = rotorBetween a b
   in sandwich rotor a ~== b
 
-prop_sorted a@(Mv blades) = a == Mv (sort blades) 
-
 -- * generators
-  
+
 gen_vector = do 
-  (x,y,z) <- arbitrary
-  return (x *> e1 + y *> e2 + z *> e3)
+  list <- sqrtArbitrary
+  return $ vectorFromComponents list
 
 instance Arbitrary Multivector where
   arbitrary = do
-    blades <- sized $ \n -> resize (intSqrt n) arbitrary
-    return . Mv . bladeSimplify $ blades
-    where intSqrt = round . sqrt . fromIntegral
+    blades <- arbitrary
+    return $ Mv EuclideanMetric blades
+
+instance (AEq a, Num a, Arbitrary a, Ord b, Arbitrary b) 
+      => Arbitrary (LinearCombination a b) where
+  arbitrary = do
+    terms <- sqrtArbitrary
+    return . simplify . LinComb $ terms
+
+instance (Arbitrary a, Arbitrary b) => Arbitrary (Term a b) where
+  arbitrary = do
+    c <- arbitrary
+    e <- arbitrary
+    return $ c :* e
+
+sqrtArbitrary :: (Arbitrary a) => Gen a
+sqrtArbitrary = sized $ \n -> resize (intSqrt n) arbitrary
+  where intSqrt = round . sqrt . fromIntegral

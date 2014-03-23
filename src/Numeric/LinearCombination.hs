@@ -10,6 +10,7 @@ module Numeric.LinearCombination
   , scalarMult
   , zero
   , showUsing
+  , simplify
   ) where
 
 import GHC.Exts (sortWith)

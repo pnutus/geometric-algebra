@@ -2,9 +2,10 @@ module Numeric.GeometricAlgebra.BasisBlade where
 
 import Data.Bits
 import Data.AEq
+import Data.Word
 import Numeric.LinearCombination
 
-type BasisBlade = Int
+type BasisBlade = Word
 
 dot :: BasisBlade -> BasisBlade -> Term Double BasisBlade
 x `dot` y = (x `geo` y) >>= (`gradeProject` (abs $ grade x - grade y))
@@ -23,13 +24,10 @@ geo :: BasisBlade -> BasisBlade -> Term Double BasisBlade
 b1 `geo` b2 = (normalOrderSign b1 b2) :* (b1 `xor` b2)
            
 -- | Figures out the sign associated with the normal order of two 'BasisBlade's wedged together, e.g. @e1e3 * e2 -> -e1e2e3@.
---
--- The function is antisymmetric:
---
--- prop> normalOrderSign b b' == - normalOrderSign b' b
+
 normalOrderSign :: BasisBlade -> BasisBlade -> Double
 normalOrderSign b b' | even (countSwaps b b') = 1
-           			     | otherwise              = -1
+                     | otherwise              = -1
   where countSwaps 0 _  = 0
         countSwaps _ 0  = 0
         countSwaps b b' = popCount (b .&. shifted) + countSwaps b shifted
