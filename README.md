@@ -1,7 +1,7 @@
 Geometric Algebra
 =================
 
-A library for Geometric Algebra calculations in Haskell.
+A library for Geometric Algebra calculations in Haskell. Built for understanding, not speed.
 
 Installation
 ------------
@@ -19,7 +19,7 @@ Usage
 
 Start by importing the package and a Metric:
 
-```
+```haskell
 import Numeric.GeometricAlgebra
 import Numeric.GeometricAlgebra.Metric.Euclidean
 ```
